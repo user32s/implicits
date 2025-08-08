@@ -1,0 +1,33 @@
+{
+  "configurations" : [
+    {
+      "id" : "95FD39A0-3A8C-4FA5-99B0-AEA66EB673AE",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : {
+      "targets" : [
+        {
+          "containerPath" : "container:",
+          "identifier" : "ImplicitsTool",
+          "name" : "ImplicitsTool"
+        }
+      ]
+    },
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:",
+        "identifier" : "ImplicitsToolTests",
+        "name" : "ImplicitsToolTests"
+      }
+    }
+  ],
+  "version" : 1
+}

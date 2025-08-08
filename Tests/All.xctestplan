@@ -1,0 +1,38 @@
+{
+  "configurations" : [
+    {
+      "id" : "5FBCD7B8-31BB-491B-94B0-2D53DD1B2979",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:",
+        "identifier" : "ImplicitsTests",
+        "name" : "ImplicitsTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:",
+        "identifier" : "ImplicitsToolTests",
+        "name" : "ImplicitsToolTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:",
+        "identifier" : "NewImplicitsToolTests",
+        "name" : "NewImplicitsToolTests"
+      }
+    }
+  ],
+  "version" : 1
+}

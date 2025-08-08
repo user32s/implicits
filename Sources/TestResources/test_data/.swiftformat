@@ -1,0 +1,5 @@
+--disable wrapSingleLineComments
+--disable redundantLet
+--disable redundantType
+--disable unusedArguments
+--disable extensionAccessControl
