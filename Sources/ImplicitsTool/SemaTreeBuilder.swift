@@ -753,8 +753,10 @@ enum SemaTreeBuilder<
     let base = functionCall.base
     let name = functionCall.name
 
-    // withScope { scope in ... }
-    if let (closure, scope) = functionCall.isWithScope() {
+    if let (nested, withBag, closure, scope) = functionCall.isWithScope() {
+      let hasBag = withBag && analyzeImplicitScopeArgs(
+        args: functionCall.arguments, errors: &context.diagnostics
+      )
       let withScopeBody = visit(
         codeBlockEntities: closure.body,
         context: &context[withScope: closure, scopeParamter: scope]
@@ -763,7 +765,7 @@ enum SemaTreeBuilder<
       return .regularFunction(argsAndCalled: [
         CodeBlockItem(
           syntax: syntax,
-          node: .withScope(body: withScopeBody)
+          node: .withScope(nested: nested, withBag: hasBag, body: withScopeBody)
         )
       ])
     }
@@ -1247,17 +1249,41 @@ extension SyntaxTree.FunctionCall {
     return Sema.ImplicitBagDescription(fillFunctionName: name)
   }
 
-  func isWithScope(
-  ) -> (closure: SyntaxTree.ClosureExpr, scopeArg: Syntax)? {
+  func getWithScopeArgs() -> (nested: Bool, withBag: Bool, closure: SyntaxTree.ClosureExpr)? {
+    var nested = false
+    var withBag = false
+
+    switch arguments.count {
+    case 0:
+      break
+    case 1:
+      switch arguments[0].name?.value {
+      case "nesting":
+        nested = true
+      case ImplicitKeyword.Scope.bagParameterName:
+        withBag = true
+      default:
+        return nil
+      }
+    default:
+      return nil
+    }
+
+    guard let trailingClosure else { return nil }
+    return (nested: nested, withBag: withBag, closure: trailingClosure.value)
+  }
+
+  func isWithScope()
+    -> (nested: Bool, withBag: Bool, closure: SyntaxTree.ClosureExpr, scopeArg: Syntax)? {
     guard base == nil,
           name?.value.description == "withScope",
-          let trailingClosure,
-          let params = trailingClosure.value.parameters,
+          let (nested, withBag, closure) = getWithScopeArgs(),
+          let params = closure.parameters,
           let scopeArg = params.singleElement,
           scopeArg.isImplicitScope else {
       return nil
     }
-    return (closure: trailingClosure.value, scopeArg: scopeArg.name.syntax)
+    return (nested: nested, withBag: withBag, closure: closure, scopeArg: scopeArg.name.syntax)
   }
 }
 

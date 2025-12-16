@@ -1,4 +1,4 @@
-// swift-tools-version:6.0
+// swift-tools-version:6.2
 // Copyright 2023 Yandex LLC. All rights reserved.
 
 import CompilerPluginSupport
@@ -100,9 +100,7 @@ let package = Package(
     ),
     .target(
       name: "TestResources",
-      resources: [
-        .copy("test_data"),
-      ],
+      exclude: ["test_data"],
       swiftSettings: [
         .define("PACKAGE_MANAGER"),
       ]

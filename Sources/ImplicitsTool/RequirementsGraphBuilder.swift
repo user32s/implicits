@@ -299,6 +299,12 @@ extension UnresolvedGraph {
     }
   }
 
+  mutating func diagnoseBagUsageInDisallowedContext(_ bagReferences: [Idx]) {
+    for bag in bagReferences {
+      diagnostics.diagnose(.noBag, at: graph[bag].payload)
+    }
+  }
+
   // MARK: CodeBlock
 
   struct CodeBlockState {
@@ -449,8 +455,24 @@ extension UnresolvedGraph {
     case let .typeDeclaration(type):
       traverseMemberBlock(type.members, namespace: type.name, file: state.file)
     case let .functionDeclaration(decl):
-      _ = decl
-    // not implemented
+      guard !decl.hasScopeParameter else {
+        diagnostics.diagnose(.nestedFunctionWithScope, at: sema.syntax)
+        return
+      }
+
+      let finalState = traverseCodeBlock(
+        decl.body,
+        state: .newScope(
+          nil,
+          inheritsScope: false,
+          allowsStoredBagUsage: false,
+          file: state.file
+        )
+      )
+
+      if !finalState.bagReferences.isEmpty {
+        diagnoseBagUsageInDisallowedContext(finalState.bagReferences)
+      }
     case let .deferStatement(nodes):
       traverseInDeferBlock(nodes, state: &state.deferLense)
     case let .closureExpression(closure):
@@ -485,7 +507,11 @@ extension UnresolvedGraph {
           graph.addEdge(from: idx, to: bag)
         }
       case (usesBag: true, bag: nil):
-        state.bagReferences += finalState.bagReferences
+        if state.allowsStoredBagUsage {
+          state.bagReferences += finalState.bagReferences
+        } else {
+          diagnoseBagUsageInDisallowedContext(finalState.bagReferences)
+        }
       case (usesBag: false, bag: let idx?):
         diagnostics.diagnose(.unusedBag, at: graph[idx].payload)
       case (usesBag: false, bag: nil):
@@ -500,6 +526,7 @@ extension UnresolvedGraph {
         parent: state.parent
       )
       state.parent = new
+      diagnostics.check(state.hasScope, or: .noScope, at: sema.syntax)
     case let .implicitScopeBegin(nested: nested, withBag: usesBag):
       let new = addNode(syntax: sema.syntax, parent: nil)
       switch (nested: nested, usesBag: usesBag, parent: state.parent) {
@@ -552,14 +579,30 @@ extension UnresolvedGraph {
         parent: state.parent
       )
       diagnostics.check(state.hasWritableScope, or: .noWritableScope, at: sema.syntax)
-    case let .withScope(body: body):
+    case let .withScope(nested: isNested, withBag: usesBag, body: body):
       var innerState = state.innerScopeLense
       defer { state.innerScopeLense = innerState }
       let scopeNode = addNode(syntax: sema.syntax, parent: nil)
-      entryPoints.append(scopeNode)
+
+      switch (nested: isNested, usesBag: usesBag, parent: state.parent) {
+      case (nested: false, usesBag: false, parent: _):
+        // `withScope {}`
+        entryPoints.append(scopeNode)
+      case (nested: true, usesBag: false, parent: nil):
+        diagnostics.diagnose(.nestingNoScope, at: sema.syntax)
+      case (nested: true, usesBag: false, parent: let parent?):
+        // `withScope(nesting:)`
+        graph.addEdge(from: parent, to: scopeNode)
+      case (nested: false, usesBag: true, parent: _):
+        // `withScope(with: implicits)`
+        innerState.bagReferences.append(scopeNode)
+      case (nested: true, usesBag: true, parent: _):
+        diagnostics.diagnose(.nestedScopeUsesBags, at: sema.syntax)
+      }
+
       innerState.parent = scopeNode
       innerState.beginLocalScope(
-        nested: false, at: sema.syntax, diagnostics: &diagnostics
+        nested: isNested, at: sema.syntax, diagnostics: &diagnostics
       )
       innerState.endLocalScope(at: sema.syntax, diagnostics: &diagnostics)
       traverseCodeBlock(body, state: &innerState)
@@ -646,6 +689,9 @@ extension DiagnosticMessage {
 
   fileprivate static let noExtensionNamespace: Self =
     "Using Implicits in extension of complex type, consider using free function or moving to extension with simple type"
+
+  fileprivate static let nestedFunctionWithScope: Self =
+    "Nested functions with scope parameter are not supported"
 
   // Defer block
   fileprivate static let closureWithBagInDefer: Self =
